@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Work Trip Tracker</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #a0aec0;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #718096;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-6 lg:p-8">
+    <div class="max-w-4xl mx-auto bg-white shadow-lg rounded-xl p-6 sm:p-8 lg:p-10 mb-8">
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-800 mb-4 text-center">Annual Work Trip Tracker</h1>
+        <p class="text-gray-600 mb-6 text-center text-sm sm:text-base">
+            Track your work-related travel from July 1, 2024, to June 30, 2025, to claim deductions.
+            Enter your trips below, specify "from" and "to" locations, and the distance in kilometers.
+        </p>
+
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 p-4 bg-blue-50 rounded-lg">
+            <label for="startDate" class="text-lg font-medium text-gray-700 mr-2">Start Date:</label>
+            <input type="date" id="startDate" value="2024-07-01" class="p-2 border border-blue-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 mb-2 sm:mb-0 sm:mr-4">
+
+            <label for="endDate" class="text-lg font-medium text-gray-700 mr-2">End Date:</label>
+            <input type="date" id="endDate" value="2025-06-30" class="p-2 border border-blue-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 mb-2 sm:mb-0">
+        </div>
+
+        <div id="tripEntries" class="space-y-6">
+            <!-- Trip entries will be dynamically added here -->
+        </div>
+
+        <div class="mt-8 flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
+            <button id="addDayButton" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                Add New Trip Day
+            </button>
+            <button id="calculateTotalButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                Calculate Total Kilometers
+            </button>
+            <button id="exportExcelButton" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                Export to Excel
+            </button>
+        </div>
+
+        <div class="mt-8 p-6 bg-green-50 rounded-xl shadow-inner border border-green-200">
+            <h2 class="text-2xl font-bold text-green-800 mb-4 text-center">Total Kilometers Traveled:</h2>
+            <p id="totalKmDisplay" class="text-4xl font-extrabold text-green-900 text-center">0 km</p>
+        </div>
+
+        <!-- Custom Modal for Messages -->
+        <div id="messageModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full transform transition-all duration-300 scale-95 opacity-0" id="messageModalContent">
+                <h3 class="text-lg font-bold text-gray-800 mb-4" id="modalTitle"></h3>
+                <p class="text-gray-700 mb-6" id="modalMessage"></p>
+                <div class="flex justify-end">
+                    <button id="closeModalButton" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-md transition duration-200">
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const tripEntriesDiv = document.getElementById('tripEntries');
+            const addDayButton = document.getElementById('addDayButton');
+            const calculateTotalButton = document.getElementById('calculateTotalButton');
+            const exportExcelButton = document.getElementById('exportExcelButton'); // New export button
+            const totalKmDisplay = document.getElementById('totalKmDisplay');
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+
+            // Modal elements
+            const messageModal = document.getElementById('messageModal');
+            const messageModalContent = document.getElementById('messageModalContent');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalMessage = document.getElementById('modalMessage');
+            const closeModalButton = document.getElementById('closeModalButton');
+
+            /**
+             * Displays a custom modal message.
+             * @param {string} title - The title of the modal.
+             * @param {string} message - The message content.
+             */
+            function showModal(title, message) {
+                modalTitle.textContent = title;
+                modalMessage.textContent = message;
+                messageModal.classList.remove('hidden');
+                setTimeout(() => {
+                    messageModalContent.classList.remove('scale-95', 'opacity-0');
+                    messageModalContent.classList.add('scale-100', 'opacity-100');
+                }, 10); // Small delay for transition to apply
+            }
+
+            // Close modal button event listener
+            closeModalButton.addEventListener('click', () => {
+                messageModalContent.classList.remove('scale-100', 'opacity-100');
+                messageModalContent.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => {
+                    messageModal.classList.add('hidden');
+                }, 300); // Wait for transition to complete
+            });
+
+            // Helper function to format a date to YYYY-MM-DD
+            function formatDate(date) {
+                const d = new Date(date);
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+
+            // Function to generate a random date within a range
+            function getRandomDate(start, end) {
+                const startDate = new Date(start).getTime();
+                const endDate = new Date(end).getTime();
+                const randomTime = startDate + Math.random() * (endDate - startDate);
+                return formatDate(new Date(randomTime));
+            }
+
+            // Sample locations and typical distances
+            const locations = ["Home", "Client Site A", "Client Site B", "Client Site C", "Office Hub", "Workshop"];
+            const distances = [10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
+
+            /**
+             * Creates a single trip input row.
+             * @param {string} fromLocation - Pre-filled 'from' location.
+             * @param {string} toLocation - Pre-filled 'to' location.
+             * @param {number} distanceKm - Pre-filled distance.
+             * @returns {HTMLElement} The trip row element.
+             */
+            function createTripRow(fromLocation = '', toLocation = '', distanceKm = '') {
+                const tripId = `trip-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`; // Unique ID for each trip
+                const tripDiv = document.createElement('div');
+                tripDiv.id = tripId;
+                tripDiv.className = 'flex flex-col sm:flex-row items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200';
+                tripDiv.innerHTML = `
+                    <input type="text" class="from-location flex-1 p-2 border border-gray-300 rounded-md" placeholder="From (e.g., Home)" value="${fromLocation}">
+                    <span class="text-gray-600 hidden sm:block">to</span>
+                    <input type="text" class="to-location flex-1 p-2 border border-gray-300 rounded-md" placeholder="To (e.g., Client Site A)" value="${toLocation}">
+                    <span class="text-gray-600 hidden sm:block">km</span>
+                    <input type="number" class="distance-km w-24 p-2 border border-gray-300 rounded-md" placeholder="Distance" min="0" value="${distanceKm}">
+                    <button type="button" class="remove-trip-btn bg-red-500 hover:bg-red-600 text-white p-2 rounded-md transition duration-200">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 011-1h4a1 1 0 110 2H8a1 1 0 01-1-1zm2 3a1 1 0 011-1h2a1 1 0 110 2h-2a1 1 0 01-1-1zm0 3a1 1 0 011-1h2a1 1 0 110 2h-2a1 1 0 01-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                `;
+                tripDiv.querySelector('.remove-trip-btn').addEventListener('click', () => {
+                    tripDiv.remove();
+                    calculateTotalKilometers(); // Recalculate after removal
+                });
+                // Recalculate total on input change
+                tripDiv.querySelectorAll('input').forEach(input => {
+                    input.addEventListener('input', calculateTotalKilometers);
+                });
+                return tripDiv;
+            }
+
+            /**
+             * Adds a new day entry section.
+             * @param {string} dateString - The date for the new entry.
+             * @param {Array<Object>} initialTrips - Optional array of trip objects to pre-fill.
+             */
+            function addNewDayEntry(dateString, initialTrips = []) {
+                const dayId = `day-${dateString}`;
+                // Check if a day entry for this date already exists
+                if (document.getElementById(dayId)) {
+                    showModal('Duplicate Date', `An entry for ${dateString} already exists. Please select a different date or edit the existing entry.`);
+                    return;
+                }
+
+                const dayDiv = document.createElement('div');
+                dayDiv.id = dayId;
+                dayDiv.className = 'day-entry border border-gray-300 rounded-xl p-4 bg-white shadow-sm mb-4';
+                dayDiv.innerHTML = `
+                    <div class="flex flex-col sm:flex-row justify-between items-center mb-4 pb-3 border-b border-gray-200">
+                        <input type="date" value="${dateString}" class="date-input text-lg font-semibold text-gray-800 p-2 rounded-md border border-gray-300 focus:ring-blue-500 focus:border-blue-500 mb-2 sm:mb-0">
+                        <button type="button" class="add-trip-btn bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md transition duration-200 mr-2">
+                            Add Trip
+                        </button>
+                        <button type="button" class="remove-day-btn bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-md transition duration-200">
+                            Remove Day
+                        </button>
+                    </div>
+                    <div class="trips-container space-y-3">
+                        <!-- Trips for this day will go here -->
+                    </div>
+                `;
+
+                const tripsContainer = dayDiv.querySelector('.trips-container');
+                dayDiv.querySelector('.add-trip-btn').addEventListener('click', () => {
+                    tripsContainer.appendChild(createTripRow());
+                    calculateTotalKilometers(); // Recalculate after adding
+                });
+
+                dayDiv.querySelector('.remove-day-btn').addEventListener('click', () => {
+                    dayDiv.remove();
+                    calculateTotalKilometers(); // Recalculate after removal
+                });
+
+                // Attach event listener for date input change
+                dayDiv.querySelector('.date-input').addEventListener('change', (event) => {
+                    const oldDateId = dayDiv.id;
+                    const newDate = event.target.value;
+                    const newDayId = `day-${newDate}`;
+
+                    // Check if new date clashes with existing day entry
+                    if (document.getElementById(newDayId) && newDayId !== oldDateId) {
+                        showModal('Duplicate Date', `An entry for ${newDate} already exists. Reverting to previous date.`);
+                        event.target.value = oldDateId.replace('day-', ''); // Revert to old date
+                        return;
+                    }
+
+                    dayDiv.id = newDayId; // Update ID if date is valid and unique
+                });
+
+                // Add initial trips if provided
+                if (initialTrips.length > 0) {
+                    initialTrips.forEach(trip => {
+                        tripsContainer.appendChild(createTripRow(trip.from, trip.to, trip.distance));
+                    });
+                } else {
+                    // Add one empty trip row by default if no initial trips
+                    tripsContainer.appendChild(createTripRow());
+                }
+
+                tripEntriesDiv.appendChild(dayDiv);
+                // Sort day entries by date
+                sortDayEntries();
+                calculateTotalKilometers(); // Recalculate total after adding a new day
+            }
+
+            /**
+             * Sorts day entries by date in ascending order.
+             */
+            function sortDayEntries() {
+                const dayEntries = Array.from(tripEntriesDiv.querySelectorAll('.day-entry'));
+                dayEntries.sort((a, b) => {
+                    const dateA = new Date(a.querySelector('.date-input').value);
+                    const dateB = new Date(b.querySelector('.date-input').value);
+                    return dateA - dateB;
+                });
+                dayEntries.forEach(entry => tripEntriesDiv.appendChild(entry));
+            }
+
+            /**
+             * Calculates and displays the total kilometers.
+             */
+            function calculateTotalKilometers() {
+                let totalKm = 0;
+                document.querySelectorAll('.distance-km').forEach(input => {
+                    const distance = parseFloat(input.value);
+                    if (!isNaN(distance) && distance > 0) {
+                        totalKm += distance;
+                    }
+                });
+                totalKmDisplay.textContent = `${totalKm.toLocaleString()} km`;
+            }
+
+            /**
+             * Exports the trip data to a CSV file.
+             */
+            function exportToExcel() {
+                const data = [];
+                // Add CSV header
+                data.push(['Date', 'From Location', 'To Location', 'Distance (KM)']);
+
+                // Get all day entries
+                const dayEntries = Array.from(document.querySelectorAll('.day-entry'));
+                
+                // Sort day entries by date before exporting
+                dayEntries.sort((a, b) => {
+                    const dateA = new Date(a.querySelector('.date-input').value);
+                    const dateB = new Date(b.querySelector('.date-input').value);
+                    return dateA - dateB;
+                });
+
+                dayEntries.forEach(dayDiv => {
+                    const date = dayDiv.querySelector('.date-input').value;
+                    const tripRows = dayDiv.querySelectorAll('.trips-container > div'); // Select direct children of trips-container
+
+                    tripRows.forEach(tripDiv => {
+                        const fromLocation = tripDiv.querySelector('.from-location').value;
+                        const toLocation = tripDiv.querySelector('.to-location').value;
+                        const distanceKm = tripDiv.querySelector('.distance-km').value;
+                        data.push([date, fromLocation, toLocation, distanceKm]);
+                    });
+                });
+
+                // Convert data array to CSV string
+                const csvContent = data.map(e => e.join(",")).join("\n");
+                
+                // Create a Blob and download it
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'work_trips_report.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showModal('Export Complete', 'Your trip data has been successfully exported to work_trips_report.csv!');
+            }
+
+
+            // Event listener for adding a new day
+            addDayButton.addEventListener('click', () => {
+                const today = new Date();
+                const defaultDate = formatDate(today);
+                addNewDayEntry(defaultDate);
+            });
+
+            // Event listener for calculating total kilometers
+            calculateTotalButton.addEventListener('click', calculateTotalKilometers);
+
+            // Event listener for exporting to Excel
+            exportExcelButton.addEventListener('click', exportToExcel); // New event listener
+
+            /**
+             * Generates random trip data for a given date.
+             * @param {string} dateString - The date for which to generate trips.
+             * @returns {Array<Object>} An array of trip objects.
+             */
+            function generateRandomTrips(dateString) {
+                const numTrips = Math.floor(Math.random() * 3) + 1; // 1 to 3 trips
+                const dayTrips = [];
+                let currentLocation = locations[Math.floor(Math.random() * locations.length)];
+
+                for (let i = 0; i < numTrips; i++) {
+                    let nextLocation = locations[Math.floor(Math.random() * locations.length)];
+                    // Ensure 'from' and 'to' are different
+                    while (nextLocation === currentLocation && locations.length > 1) {
+                        nextLocation = locations[Math.floor(Math.random() * locations.length)];
+                    }
+                    const randomDistance = distances[Math.floor(Math.random() * distances.length)];
+                    dayTrips.push({
+                        from: currentLocation,
+                        to: nextLocation,
+                        distance: randomDistance
+                    });
+                    currentLocation = nextLocation; // End location becomes start for next trip
+                }
+                return dayTrips;
+            }
+
+            // Initial population with random dates and trips
+            function populateInitialData() {
+                const start = new Date(startDateInput.value);
+                const end = new Date(endDateInput.value);
+                const numRandomDays = 15; // Number of random days to pre-populate
+
+                const randomDates = new Set();
+                while (randomDates.size < numRandomDays) {
+                    randomDates.add(getRandomDate(start, end));
+                }
+
+                Array.from(randomDates).sort().forEach(date => {
+                    addNewDayEntry(date, generateRandomTrips(date));
+                });
+                calculateTotalKilometers(); // Initial calculation
+            }
+
+            populateInitialData();
+        });
+    </script>
+</body>
+</html>
